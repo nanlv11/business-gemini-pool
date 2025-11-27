@@ -318,19 +318,32 @@ export default function ChatInterface() {
             >
               <div class="whitespace-pre-wrap">{msg.content}</div>
 
-              {/* 显示生成的图片 */}
+              {/* 显示生成的图片/视频 */}
               {msg.images && msg.images.length > 0 && (
                 <div class="mt-3 space-y-2">
                   {msg.images.map((img, imgIdx) => {
-                    const imageUrl = img.url || `/api/images/${img.id}`;
+                    const mediaUrl = img.url || `/api/images/${img.id}`;
+                    const isVideo = img.mime_type?.startsWith('video/');
+
                     return (
                       <div key={imgIdx} class="border rounded overflow-hidden bg-white">
-                        <img
-                          src={imageUrl}
-                          alt={img.filename}
-                          class="max-w-full h-auto"
-                          loading="lazy"
-                        />
+                        {isVideo ? (
+                          <video
+                            src={mediaUrl}
+                            controls
+                            class="max-w-full h-auto"
+                            preload="metadata"
+                          >
+                            您的浏览器不支持视频播放。
+                          </video>
+                        ) : (
+                          <img
+                            src={mediaUrl}
+                            alt={img.filename}
+                            class="max-w-full h-auto"
+                            loading="lazy"
+                          />
+                        )}
                         <div class="text-xs p-2 bg-gray-50 text-gray-700">
                           {img.filename}
                         </div>
