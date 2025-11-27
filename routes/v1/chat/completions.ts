@@ -219,8 +219,37 @@ function createStreamResponse(
           }
         }
 
-        // 发送结束标记（包含图片信息）
-        const finalChunk: any = {
+        // 如果有图片，逐个发送图片
+        if (images && images.length > 0) {
+          for (const img of images) {
+            const imageUrl = img.url || `/api/images/${img.id}`;
+            const imageChunk = {
+              id,
+              object: "chat.completion.chunk",
+              created,
+              model,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    content: {
+                      type: "image_url",
+                      image_url: {
+                        url: imageUrl,
+                      },
+                    },
+                  },
+                  finish_reason: null,
+                },
+              ],
+            };
+
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(imageChunk)}\n\n`));
+          }
+        }
+
+        // 发送结束标记
+        const finalChunk = {
           id,
           object: "chat.completion.chunk",
           created,
@@ -233,11 +262,6 @@ function createStreamResponse(
             },
           ],
         };
-
-        // 如果有图片，添加到最后的chunk中
-        if (images && images.length > 0) {
-          finalChunk.images = images;
-        }
 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -281,14 +305,34 @@ function createNonStreamResponse(
 
   const completionTokens = estimateTokens(text);
 
-  // 在文本中附加图片信息
-  let responseContent = text;
+  // 构建符合OpenAI标准的content
+  let messageContent: string | Array<any>;
+
   if (images && images.length > 0) {
-    responseContent += "\n\n[Generated Images]\n";
+    // 如果有图片，使用数组格式
+    messageContent = [];
+
+    // 添加文本部分（如果有）
+    if (text && text.trim()) {
+      messageContent.push({
+        type: "text",
+        text: text,
+      });
+    }
+
+    // 添加图片部分
     for (const img of images) {
       const imageUrl = img.url || `/api/images/${img.id}`;
-      responseContent += `- ${img.filename} (${img.mime_type}): ${imageUrl}\n`;
+      messageContent.push({
+        type: "image_url",
+        image_url: {
+          url: imageUrl,
+        },
+      });
     }
+  } else {
+    // 如果没有图片，使用纯文本格式
+    messageContent = text;
   }
 
   return Response.json({
@@ -301,7 +345,7 @@ function createNonStreamResponse(
         index: 0,
         message: {
           role: "assistant",
-          content: responseContent,
+          content: messageContent,
         },
         finish_reason: "stop",
       },
@@ -311,6 +355,5 @@ function createNonStreamResponse(
       completion_tokens: completionTokens,
       total_tokens: promptTokens + completionTokens,
     },
-    images: images, // 添加非标准字段
   });
 }
