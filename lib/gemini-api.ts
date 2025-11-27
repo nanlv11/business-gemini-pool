@@ -359,10 +359,10 @@ export async function streamChat(params: {
       }
     }
 
-    // 4. 下载 fileId 引用的图片
+    // 4. 收集 fileId 引用（不下载，交给调用方处理）
     if (fileIdsToDownload.length > 0 && currentSession) {
       console.log(
-        `Found ${fileIdsToDownload.length} fileId references to download`,
+        `Found ${fileIdsToDownload.length} fileId references`,
         `\nCurrent session: ${currentSession}`
       );
 
@@ -381,58 +381,21 @@ export async function streamChat(params: {
       }
 
       for (const finfo of fileIdsToDownload) {
-        try {
-          // 从元数据中获取正确的session路径
-          const meta = fileMetadata[finfo.fileId];
-          const sessionPath = meta?.session || currentSession;
-          const fileName = finfo.fileName || meta?.name;
+        // 从元数据中获取正确的session路径
+        const meta = fileMetadata[finfo.fileId];
+        const sessionPath = meta?.session || currentSession;
+        const fileName = finfo.fileName || meta?.name || `${crypto.randomUUID()}.${finfo.mimeType.split("/")[1] || "png"}`;
 
-          console.log(`Downloading fileId: ${finfo.fileId} from session: ${sessionPath}`);
-          const imageData = await downloadFileWithJWT({
-            jwt,
-            session: sessionPath,
-            fileId: finfo.fileId,
-            proxy,
-          });
+        // 只返回 fileId 引用，不下载（交给调用方流式处理）
+        images.push({
+          file_id: finfo.fileId,
+          file_name: fileName,
+          mime_type: finfo.mimeType,
+          // 保存 session 路径用于后续下载
+          url: sessionPath, // 临时使用 url 字段存储 session 路径
+        });
 
-          if (imageData) {
-            const filename =
-              fileName ||
-              `${crypto.randomUUID()}.${finfo.mimeType.split("/")[1] || "png"}`;
-
-            // 安全地转换为base64，避免大文件导致栈溢出
-            let base64Data: string;
-            try {
-              // 对于大文件，分块处理
-              if (imageData.length > 100000) {
-                const chunks: string[] = [];
-                const chunkSize = 8192;
-                for (let i = 0; i < imageData.length; i += chunkSize) {
-                  const chunk = imageData.slice(i, i + chunkSize);
-                  chunks.push(String.fromCharCode(...chunk));
-                }
-                base64Data = btoa(chunks.join(''));
-              } else {
-                base64Data = btoa(String.fromCharCode(...imageData));
-              }
-            } catch (err) {
-              console.error(`Failed to encode file to base64: ${err}`);
-              continue;
-            }
-
-            images.push({
-              file_id: finfo.fileId,
-              file_name: filename,
-              mime_type: finfo.mimeType,
-              base64_data: base64Data,
-            });
-
-            console.log(`Successfully downloaded file: ${filename} (${imageData.length} bytes)`);
-          }
-        } catch (err) {
-          console.error(`Failed to download fileId ${finfo.fileId}:`, err);
-          // 单个图片失败不影响其他图片
-        }
+        console.log(`Added fileId reference: ${finfo.fileId} (session: ${sessionPath})`);
       }
     }
   } catch (err) {
@@ -450,14 +413,14 @@ export async function streamChat(params: {
 }
 
 /**
- * 下载文件（使用 JWT）
+ * 下载文件（使用 JWT）- 流式版本
  */
 export async function downloadFileWithJWT(params: {
   jwt: string;
   session: string;
   fileId: string;
   proxy?: string;
-}): Promise<Uint8Array | undefined> {
+}): Promise<ReadableStream<Uint8Array> | undefined> {
   const { jwt, session, fileId, proxy } = params;
   const url = `${DOWNLOAD_FILE_BASE}/${session}:downloadFile?fileId=${fileId}&alt=media`;
 
@@ -488,7 +451,7 @@ export async function downloadFileWithJWT(params: {
     return undefined;
   }
 
-  return new Uint8Array(await res.arrayBuffer());
+  return res.body || undefined;
 }
 
 /**

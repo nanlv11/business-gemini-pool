@@ -75,10 +75,95 @@ export const handler: Handlers = {
             console.log(`Processing ${result.images.length} images`);
 
             for (const img of result.images) {
-              if (img.base64_data) {
-                try {
-                  const fileName = img.file_name || "image.png";
+              try {
+                const fileName = img.file_name || "image.png";
 
+                // 处理 fileId 引用（流式下载+上传）
+                if (img.file_id && img.url) {
+                  console.log(`Processing fileId: ${img.file_id}`);
+
+                  if (useUploadService) {
+                    // 流式下载并上传到 cfbed
+                    const { downloadFileWithJWT } = await import("../../../lib/gemini-api.ts");
+                    const { uploadStreamToCfbed } = await import("../../../lib/upload-service.ts");
+
+                    const stream = await downloadFileWithJWT({
+                      jwt,
+                      session: img.url, // url 字段存储的是 session 路径
+                      fileId: img.file_id,
+                      proxy,
+                    });
+
+                    if (stream) {
+                      console.log(`Streaming upload ${fileName} to cfbed...`);
+                      const uploadResult = await uploadStreamToCfbed(
+                        config.upload_endpoint!,
+                        config.upload_api_token!,
+                        stream,
+                        fileName,
+                        img.mime_type
+                      );
+
+                      const baseUrl = config.image_base_url || config.upload_endpoint!.replace(/\/upload$/, "");
+                      const fullUrl = `${baseUrl}${uploadResult.src}`;
+
+                      imageMetadata.push({
+                        id: uploadResult.src,
+                        filename: fileName,
+                        mime_type: img.mime_type,
+                        url: fullUrl,
+                      });
+
+                      console.log(`Streamed to cfbed: ${fullUrl}`);
+                    }
+                  } else {
+                    // 下载并缓存到 Deno KV
+                    const { downloadFileWithJWT } = await import("../../../lib/gemini-api.ts");
+
+                    const stream = await downloadFileWithJWT({
+                      jwt,
+                      session: img.url,
+                      fileId: img.file_id,
+                      proxy,
+                    });
+
+                    if (stream) {
+                      // 读取流到内存（KV 需要完整数据）
+                      const reader = stream.getReader();
+                      const chunks: Uint8Array[] = [];
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                      }
+
+                      // 合并所有块
+                      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+                      const bytes = new Uint8Array(totalLength);
+                      let offset = 0;
+                      for (const chunk of chunks) {
+                        bytes.set(chunk, offset);
+                        offset += chunk.length;
+                      }
+
+                      const cacheId = await imageCacheManager.saveDownloadedImage(
+                        bytes,
+                        img.mime_type,
+                        fileName
+                      );
+
+                      imageMetadata.push({
+                        id: cacheId,
+                        filename: fileName,
+                        mime_type: img.mime_type,
+                      });
+
+                      console.log(`Cached to KV: ${cacheId} (${fileName})`);
+                    }
+                  }
+                }
+                // 处理 base64 数据
+                else if (img.base64_data) {
                   if (useUploadService) {
                     // 上传到 cfbed
                     console.log(`Uploading ${fileName} to cfbed...`);
@@ -124,9 +209,9 @@ export const handler: Handlers = {
 
                     console.log(`Cached to KV: ${cacheId} (${fileName})`);
                   }
-                } catch (err) {
-                  console.error("Failed to process image:", err);
                 }
+              } catch (err) {
+                console.error("Failed to process image:", err);
               }
             }
           }

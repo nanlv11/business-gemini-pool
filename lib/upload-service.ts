@@ -108,3 +108,52 @@ export async function uploadBase64ToCfbed(
     mimeType,
   });
 }
+
+/**
+ * 从 ReadableStream 上传文件（流式上传，不占用内存）
+ */
+export async function uploadStreamToCfbed(
+  endpoint: string,
+  apiToken: string,
+  stream: ReadableStream<Uint8Array>,
+  fileName: string,
+  mimeType: string
+): Promise<UploadResponse> {
+  // 构建查询参数
+  const params = new URLSearchParams();
+  params.append("authCode", apiToken);
+  params.append("uploadChannel", "telegram");
+  params.append("serverCompress", "true");
+  params.append("autoRetry", "true");
+  params.append("uploadNameType", "default");
+  params.append("returnFormat", "default");
+
+  const url = `${endpoint}?${params.toString()}`;
+
+  // 创建 FormData
+  const formData = new FormData();
+  const blob = new Blob([stream], { type: mimeType });
+  formData.append("file", blob, fileName);
+
+  // 发送请求
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Upload failed (${response.status}): ${errorText}`
+    );
+  }
+
+  const data = await response.json();
+
+  // cfbed 返回格式: [{ src: "/file/abc123_image.jpg" }]
+  if (Array.isArray(data) && data.length > 0 && data[0].src) {
+    return data[0];
+  }
+
+  throw new Error("Invalid response format from upload service");
+}
