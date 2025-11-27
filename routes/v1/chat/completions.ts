@@ -193,14 +193,41 @@ function createStreamResponse(
   const stream = new ReadableStream({
     start(controller) {
       try {
-        // 将文本分块发送（模拟流式）
-        const words = text.split(" ");
-        let currentChunk = "";
+        // 如果有文本，分块发送
+        if (text && text.trim()) {
+          const words = text.split(" ");
+          for (let i = 0; i < words.length; i++) {
+            const currentChunk = words[i] + (i < words.length - 1 ? " " : "");
 
-        for (let i = 0; i < words.length; i++) {
-          currentChunk = words[i] + (i < words.length - 1 ? " " : "");
+            const chunk = {
+              id,
+              object: "chat.completion.chunk",
+              created,
+              model,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    content: currentChunk,
+                  },
+                  finish_reason: null,
+                },
+              ],
+            };
 
-          const chunk = {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          }
+        }
+
+        // 如果有图片，发送图片信息
+        if (images && images.length > 0) {
+          let imageInfo = "\n\n[Generated Images]\n";
+          for (const img of images) {
+            const imageUrl = img.url || `/api/images/${img.id}`;
+            imageInfo += `- ${img.filename} (${img.mime_type}): ${imageUrl}\n`;
+          }
+
+          const imageChunk = {
             id,
             object: "chat.completion.chunk",
             created,
@@ -209,14 +236,14 @@ function createStreamResponse(
               {
                 index: 0,
                 delta: {
-                  content: currentChunk,
+                  content: imageInfo,
                 },
                 finish_reason: null,
               },
             ],
           };
 
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(imageChunk)}\n\n`));
         }
 
         // 发送结束标记
