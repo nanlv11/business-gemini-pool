@@ -41,7 +41,7 @@ export default function AccountManager() {
   async function loadAccounts() {
     loading.value = true;
     try {
-      const res = await fetch("/api/accounts");
+      const res = await fetch("/api/accounts", { credentials: "include" });
       const data = await res.json();
       accounts.value = data.accounts || [];
       stats.value = data.stats || {};
@@ -56,7 +56,7 @@ export default function AccountManager() {
     if (!confirm("确定要删除这个账号吗？")) return;
 
     try {
-      const res = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/accounts/${id}`, { method: "DELETE", credentials: "include" });
       if (res.ok) {
         await loadAccounts();
         alert("删除成功");
@@ -69,7 +69,7 @@ export default function AccountManager() {
 
   async function toggleAccount(id: string) {
     try {
-      const res = await fetch(`/api/accounts/${id}/toggle`, { method: "POST" });
+      const res = await fetch(`/api/accounts/${id}/toggle`, { method: "POST", credentials: "include" });
       if (res.ok) {
         await loadAccounts();
       }
@@ -80,7 +80,7 @@ export default function AccountManager() {
 
   async function testAccount(id: string) {
     try {
-      const res = await fetch(`/api/accounts/${id}/test`, { method: "POST" });
+      const res = await fetch(`/api/accounts/${id}/test`, { method: "POST", credentials: "include" });
       const data = await res.json();
       if (data.success) {
         alert("测试成功！");
@@ -154,6 +154,7 @@ export default function AccountManager() {
     try {
       const res = await fetch("/api/accounts", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(account),
       });

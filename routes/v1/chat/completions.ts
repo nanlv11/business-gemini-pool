@@ -4,7 +4,7 @@ import { ensureJWT } from "../../../lib/jwt-manager.ts";
 import { ensureSession } from "../../../lib/session-manager.ts";
 import { streamChat } from "../../../lib/gemini-api.ts";
 import type { ChatCompletionRequest, ChatMessage } from "../../../lib/types.ts";
-import { requireApiAuth } from "../../../lib/auth.ts";
+import { requireAuth } from "../../../lib/auth.ts";
 
 /**
  * OpenAI 兼容的聊天完成接口
@@ -13,7 +13,7 @@ import { requireApiAuth } from "../../../lib/auth.ts";
 export const handler: Handlers = {
   async POST(req, _ctx) {
     // API Key 认证
-    const authError = requireApiAuth(req);
+    const authError = requireAuth(req);
     if (authError) return authError;
 
     const kv = await Deno.openKv();

@@ -78,6 +78,7 @@ export default function ChatInterface() {
 
   async function handleStreamResponse(requestMessages: any[]) {
     const res = await fetch("/v1/chat/completions", {
+      credentials: "include",
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -136,6 +137,7 @@ export default function ChatInterface() {
 
   async function handleNonStreamResponse(requestMessages: any[]) {
     const res = await fetch("/v1/chat/completions", {
+      credentials: "include",
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
