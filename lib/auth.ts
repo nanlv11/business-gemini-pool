@@ -12,17 +12,22 @@ export function getAdminPassword(): string {
 
 // 从请求头获取 API Key (Bearer Token)
 export function getApiKeyFromRequest(req: Request): string | undefined {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return undefined;
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return undefined;
 
-  // 支持 "Bearer <token>" 格式（OpenAI 标准）
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (match) {
-    return match[1];
+    // 支持 "Bearer <token>" 格式（OpenAI 标准）
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (match) {
+      return match[1];
+    }
+
+    // 也支持直接传递 token
+    return authHeader;
+  } catch (error) {
+    console.error("Error getting API key:", error);
+    return undefined;
   }
-
-  // 也支持直接传递 token
-  return authHeader;
 }
 
 // 验证 API Key
@@ -32,9 +37,14 @@ export function verifyApiKey(apiKey: string): boolean {
 
 // 检查 API 请求是否已认证（通过 Bearer Token）
 export function isApiAuthenticated(req: Request): boolean {
-  const apiKey = getApiKeyFromRequest(req);
-  if (!apiKey) return false;
-  return verifyApiKey(apiKey);
+  try {
+    const apiKey = getApiKeyFromRequest(req);
+    if (!apiKey) return false;
+    return verifyApiKey(apiKey);
+  } catch (error) {
+    console.error("Error in API authentication:", error);
+    return false;
+  }
 }
 
 // 生成简单的会话令牌
@@ -71,20 +81,35 @@ export function destroySession(token: string): void {
 
 // 从请求中获取会话令牌
 export function getSessionToken(req: Request): string | undefined {
-  const cookies = getCookies(req.headers);
-  return cookies.session;
+  try {
+    const cookies = getCookies(req.headers);
+    return cookies.session;
+  } catch (error) {
+    console.error("Error getting session token:", error);
+    return undefined;
+  }
 }
 
 // 检查请求是否已认证（通过 Cookie）
 export function isAuthenticated(req: Request): boolean {
-  const token = getSessionToken(req);
-  if (!token) return false;
-  return isValidSession(token);
+  try {
+    const token = getSessionToken(req);
+    if (!token) return false;
+    return isValidSession(token);
+  } catch (error) {
+    console.error("Error in authentication:", error);
+    return false;
+  }
 }
 
 // 检查请求是否已认证（支持 Cookie 或 API Key）
 export function isAuthenticatedAny(req: Request): boolean {
-  return isAuthenticated(req) || isApiAuthenticated(req);
+  try {
+    return isAuthenticated(req) || isApiAuthenticated(req);
+  } catch (error) {
+    console.error("Error in isAuthenticatedAny:", error);
+    return false;
+  }
 }
 
 // 设置会话 Cookie
@@ -120,36 +145,65 @@ export function redirectToLogin(): Response {
 
 // API 认证中间件：检查 Bearer Token，未通过则返回 401
 export function requireApiAuth(req: Request): Response | null {
-  if (!isApiAuthenticated(req)) {
+  try {
+    if (!isApiAuthenticated(req)) {
+      return new Response(JSON.stringify({ 
+        error: {
+          message: "Invalid API key. Please provide a valid API key in the Authorization header.",
+          type: "invalid_request_error",
+          code: "invalid_api_key"
+        }
+      }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return null;
+  } catch (error) {
+    console.error("Error in requireApiAuth:", error);
     return new Response(JSON.stringify({ 
       error: {
-        message: "Invalid API key. Please provide a valid API key in the Authorization header.",
-        type: "invalid_request_error",
-        code: "invalid_api_key"
+        message: "Authentication error",
+        type: "server_error"
       }
     }), {
-      status: 401,
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
-  return null;
 }
 
 // 管理 API 认证中间件：支持 Cookie 或 Bearer Token
 export function requireAuth(req: Request): Response | null {
-  if (!isAuthenticatedAny(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+  try {
+    if (!isAuthenticatedAny(req)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return null;
+  } catch (error) {
+    console.error("Error in requireAuth:", error);
+    return new Response(JSON.stringify({ 
+      error: "Authentication error",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }), {
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
-  return null;
 }
 
 // 页面认证中间件：仅支持 Cookie，未登录则重定向
 export function requireAuthRedirect(req: Request): Response | null {
-  if (!isAuthenticated(req)) {
+  try {
+    if (!isAuthenticated(req)) {
+      return redirectToLogin();
+    }
+    return null;
+  } catch (error) {
+    console.error("Error in requireAuthRedirect:", error);
     return redirectToLogin();
   }
-  return null;
 }
