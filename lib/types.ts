@@ -43,6 +43,8 @@ export interface ImageCache {
 export interface Config {
   proxy?: string;
   image_base_url?: string;
+  upload_api_token?: string;
+  upload_endpoint?: string;
 }
 
 // OpenAI 兼容类型

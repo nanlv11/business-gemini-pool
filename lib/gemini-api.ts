@@ -154,6 +154,33 @@ function parseAttachment(att: any, images: ChatImage[]): void {
 }
 
 /**
+ * 根据模型名构建 toolsSpec
+ */
+function buildToolsSpec(model?: string): Record<string, unknown> {
+  // gemini-image: 只启用图片生成
+  if (model === "gemini-image") {
+    return {
+      imageGenerationSpec: {},
+    };
+  }
+
+  // gemini-video: 只启用视频生成
+  if (model === "gemini-video") {
+    return {
+      videoGenerationSpec: {},
+    };
+  }
+
+  // 默认: 完整工具集（普通对话）
+  return {
+    webGroundingSpec: {},
+    toolRegistry: "default_tool_registry",
+    imageGenerationSpec: {},
+    videoGenerationSpec: {},
+  };
+}
+
+/**
  * 流式聊天请求（完全对齐 Python 版本）
  */
 export async function streamChat(params: {
@@ -161,9 +188,10 @@ export async function streamChat(params: {
   session: string;
   messages: ChatMessage[];
   teamId: string;
+  model?: string;
   proxy?: string;
 }): Promise<GeminiImageResponse> {
-  const { jwt, session, messages, teamId, proxy } = params;
+  const { jwt, session, messages, teamId, model, proxy } = params;
 
   // 只发送最后一条用户消息（与 Python 版本一致）
   // Session 已经保存了上下文，不需要发送完整历史
@@ -201,7 +229,7 @@ export async function streamChat(params: {
     throw new Error("No valid message content found");
   }
 
-  // 完整的 API 请求结构（对齐 Python）
+  // 完整的 API 请求结构（根据模型动态调整 toolsSpec）
   const body = {
     configId: teamId,
     additionalParams: { token: "-" },
@@ -211,12 +239,7 @@ export async function streamChat(params: {
       filter: "",
       fileIds: [],
       answerGenerationMode: "NORMAL",
-      toolsSpec: {
-        webGroundingSpec: {},
-        toolRegistry: "default_tool_registry",
-        imageGenerationSpec: {},
-        videoGenerationSpec: {},
-      },
+      toolsSpec: buildToolsSpec(model), // 🔥 根据模型动态构建
       languageCode: "zh-CN",
       userMetadata: { timeZone: "Etc/GMT-8" },
       assistSkippingMode: "REQUEST_ASSIST",
@@ -249,6 +272,12 @@ export async function streamChat(params: {
       res.statusText,
       text.slice(0, 200)
     );
+
+    // 特殊处理 429 错误
+    if (res.status === 429) {
+      throw new Error("RATE_LIMIT_EXCEEDED");
+    }
+
     throw new Error(`Stream request failed: ${res.status}`);
   }
 

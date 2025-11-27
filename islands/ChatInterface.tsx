@@ -5,7 +5,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  images?: Array<{ id: string; filename: string; mime_type: string }>;
+  images?: Array<{ id: string; filename: string; mime_type: string; url?: string }>;
 }
 
 interface Model {
@@ -273,19 +273,22 @@ export default function ChatInterface() {
               {/* 显示生成的图片 */}
               {msg.images && msg.images.length > 0 && (
                 <div class="mt-3 space-y-2">
-                  {msg.images.map((img, imgIdx) => (
-                    <div key={imgIdx} class="border rounded overflow-hidden bg-white">
-                      <img
-                        src={`/api/images/${img.id}`}
-                        alt={img.filename}
-                        class="max-w-full h-auto"
-                        loading="lazy"
-                      />
-                      <div class="text-xs p-2 bg-gray-50 text-gray-700">
-                        {img.filename}
+                  {msg.images.map((img, imgIdx) => {
+                    const imageUrl = img.url || `/api/images/${img.id}`;
+                    return (
+                      <div key={imgIdx} class="border rounded overflow-hidden bg-white">
+                        <img
+                          src={imageUrl}
+                          alt={img.filename}
+                          class="max-w-full h-auto"
+                          loading="lazy"
+                        />
+                        <div class="text-xs p-2 bg-gray-50 text-gray-700">
+                          {img.filename}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
