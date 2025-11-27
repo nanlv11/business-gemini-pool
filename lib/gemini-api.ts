@@ -399,7 +399,26 @@ export async function streamChat(params: {
             const filename =
               fileName ||
               `${crypto.randomUUID()}.${finfo.mimeType.split("/")[1] || "png"}`;
-            const base64Data = btoa(String.fromCharCode(...imageData));
+
+            // 安全地转换为base64，避免大文件导致栈溢出
+            let base64Data: string;
+            try {
+              // 对于大文件，分块处理
+              if (imageData.length > 100000) {
+                const chunks: string[] = [];
+                const chunkSize = 8192;
+                for (let i = 0; i < imageData.length; i += chunkSize) {
+                  const chunk = imageData.slice(i, i + chunkSize);
+                  chunks.push(String.fromCharCode(...chunk));
+                }
+                base64Data = btoa(chunks.join(''));
+              } else {
+                base64Data = btoa(String.fromCharCode(...imageData));
+              }
+            } catch (err) {
+              console.error(`Failed to encode file to base64: ${err}`);
+              continue;
+            }
 
             images.push({
               file_id: finfo.fileId,
@@ -408,7 +427,7 @@ export async function streamChat(params: {
               base64_data: base64Data,
             });
 
-            console.log(`Successfully downloaded image: ${filename}`);
+            console.log(`Successfully downloaded file: ${filename} (${imageData.length} bytes)`);
           }
         } catch (err) {
           console.error(`Failed to download fileId ${finfo.fileId}:`, err);
