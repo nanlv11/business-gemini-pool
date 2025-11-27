@@ -4,15 +4,27 @@
 
 ## 功能特性
 
+### 核心功能
 - **多账号轮训管理**: 使用 Deno KV 实现原子性轮训调度
 - **OpenAI 兼容 API**: 支持 `/v1/chat/completions` 和 `/v1/models` 接口
 - **流式/非流式响应**: 完整支持 Server-Sent Events (SSE)
 - **管理控制台**: 基于 Fresh Islands 的 Web UI
 - **密码认证**: 环境变量配置的访问密码保护
 - **API Key 认证**: 支持 OpenAI 格式的 Bearer Token 认证
-- **图片缓存**: 使用 Deno KV 缓存小图片（<60KB）
 - **JWT 自动管理**: 自动获取和缓存 JWT（240秒有效期）
 - **会话管理**: 自动创建和复用 Gemini 会话
+
+### 图片/视频处理
+- **多模型支持**: 支持 `gemini-2.5-flash`、`gemini-image`（图片生成）、`gemini-video`（视频生成）
+- **图片缓存**: 使用 Deno KV 缓存小图片（<60KB）
+- **cfbed 上传集成**: 支持将生成的图片/视频上传到 cfbed 服务
+- **流式处理**: Docker 部署支持大文件流式下载和上传（避免内存溢出）
+- **429 错误处理**: 自动检测并处理速率限制错误
+
+### 部署选项
+- **Docker 部署**: 2GB 内存，适合处理大文件
+- **Deno Deploy**: 128MB 内存限制，适合轻量级使用
+- **本地开发**: 快速开发和测试
 
 ## 技术栈
 
@@ -21,11 +33,61 @@
 - **数据库**: Deno KV (内置键值存储)
 - **CSS**: Tailwind CSS 3.x (CDN)
 - **状态管理**: Preact Signals
-- **部署**: Deno Deploy
+- **部署**: Docker / Deno Deploy
+- **图片上传**: cfbed 上传服务集成（可选）
 
 ## 快速开始
 
-### 本地运行
+### 方式一：Docker 部署（推荐）
+
+**适用场景**：需要处理大文件（视频、大图片）或需要自定义内存配置
+
+1. **前置要求**
+   - Docker 20.10+
+   - Docker Compose 2.0+
+
+2. **构建并启动**
+```bash
+# 克隆项目
+git clone <your-repo-url>
+cd business-gemini-pool
+
+# 构建并启动容器（后台运行）
+docker compose up -d --build
+
+# 查看日志
+docker compose logs -f
+```
+
+3. **访问应用**
+- 登录页面: http://localhost:8000/login
+- 管理控制台: http://localhost:8000 (需要登录)
+- 聊天界面: http://localhost:8000/chat (需要登录)
+- API 端点: http://localhost:8000/v1/chat/completions (需要 API Key)
+
+4. **配置说明**
+   - 默认内存限制：2GB（可在 `docker-compose.yml` 中调整）
+   - 数据持久化：`./data/kv.db`（Deno KV 数据库）
+   - 详细文档：查看 [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md)
+
+**常用命令**：
+```bash
+# 停止服务
+docker compose down
+
+# 重启服务
+docker compose restart
+
+# 查看资源使用
+docker stats business-gemini-pool
+
+# 重新构建
+docker compose up -d --build --force-recreate
+```
+
+### 方式二：本地运行
+
+**适用场景**：开发测试或小规模使用
 
 1. **安装 Deno** (如果尚未安装)
 ```bash
@@ -48,7 +110,11 @@ deno task start
 - 聊天界面: http://localhost:8000/chat (需要登录)
 - API 端点: http://localhost:8000/v1/chat/completions (需要 API Key)
 
-### 部署到 Deno Deploy
+### 方式三：部署到 Deno Deploy
+
+**适用场景**：无服务器部署，但有 128MB 内存限制
+
+⚠️ **注意**：Deno Deploy 有 128MB 内存限制，不适合处理大文件（视频、大图片）。推荐使用 Docker 部署。
 
 1. **安装 deployctl**
 ```bash
@@ -194,6 +260,24 @@ console.log(response.choices[0].message.content);
 - `GET /api/config` - 获取配置
 - `PUT /api/config` - 更新配置
 
+**可配置项**：
+- `proxy`: HTTP 代理地址（可选）
+- `upload_endpoint`: cfbed 上传服务地址（如 `https://cfbed.sanyue.de/upload`）
+- `upload_api_token`: cfbed API Token
+- `image_base_url`: 图片访问基础 URL（可选，默认从 `upload_endpoint` 推断）
+
+**配置示例**：
+```bash
+curl -X PUT https://your-app.deno.dev/api/config \
+  -H "Authorization: Bearer your-admin-password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upload_endpoint": "https://cfbed.sanyue.de/upload",
+    "upload_api_token": "your-cfbed-token",
+    "image_base_url": "https://cfbed.sanyue.de"
+  }'
+```
+
 #### 系统状态
 - `GET /api/status` - 获取系统状态
 
@@ -205,8 +289,9 @@ business-gemini-pool/
 │   ├── account-manager.ts   # 多账号轮训管理
 │   ├── jwt-manager.ts       # JWT 缓存管理
 │   ├── session-manager.ts   # 会话管理
-│   ├── gemini-api.ts        # Gemini API 封装
+│   ├── gemini-api.ts        # Gemini API 封装（支持流式下载）
 │   ├── image-cache.ts       # 图片缓存
+│   ├── upload-service.ts    # cfbed 上传服务集成
 │   ├── config-store.ts      # 配置存储
 │   ├── auth.ts              # 认证管理
 │   └── types.ts             # TypeScript 类型
@@ -218,14 +303,23 @@ business-gemini-pool/
 │   │   ├── auth/            # 认证 API
 │   │   ├── accounts/        # 账号管理 API
 │   │   ├── models/          # 模型管理 API
-│   │   └── config/          # 配置管理 API
+│   │   ├── config/          # 配置管理 API
+│   │   └── images/          # 图片访问 API
 │   └── v1/                  # OpenAI 兼容 API
+│       └── chat/completions.ts  # 聊天完成接口
 ├── islands/                 # 客户端交互组件
 │   ├── AccountManager.tsx   # 账号管理界面
 │   └── ChatInterface.tsx    # 聊天界面
-├── deno.json                # Deno 配置
-├── main.ts                  # 应用入口
-└── fresh.config.ts          # Fresh 配置
+├── data/                    # 数据目录（Docker）
+│   └── kv.db               # Deno KV 数据库
+├── Dockerfile              # Docker 镜像配置
+├── docker-compose.yml      # Docker Compose 配置
+├── .dockerignore           # Docker 忽略文件
+├── .env.example            # 环境变量示例
+├── DOCKER_DEPLOYMENT.md    # Docker 部署文档
+├── deno.json               # Deno 配置
+├── main.ts                 # 应用入口
+└── fresh.config.ts         # Fresh 配置
 ```
 
 ## 核心架构
@@ -255,10 +349,23 @@ const commitResult = await kv.atomic()
 - 自动刷新: 过期时自动重新获取
 - 跨请求共享: 通过 Deno KV 实现
 
-### 图片缓存
+### 图片/视频处理
 
-- **小图片** (<60KB): 存储到 Deno KV，1小时后自动过期
-- **大图片** (>60KB): 返回下载 URL（实时从 Gemini 下载）
+#### 存储策略
+- **配置了 cfbed**: 所有图片/视频上传到 cfbed 服务（推荐）
+- **未配置 cfbed**:
+  - 小图片 (<60KB): 存储到 Deno KV，1小时后自动过期
+  - 大图片 (>60KB): 返回下载 URL（实时从 Gemini 下载）
+
+#### 流式处理（Docker 部署）
+- **大文件优化**: 使用 ReadableStream 实现零内存占用的文件传输
+- **避免 OOM**: 文件直接从 Gemini 流式传输到 cfbed，不经过内存
+- **内存限制**: Docker 默认 2GB 内存，可处理任意大小的视频文件
+
+#### 模型支持
+- `gemini-2.5-flash`: 通用对话模型（默认）
+- `gemini-image`: 图片生成专用模型
+- `gemini-video`: 视频生成专用模型
 
 ## 故障排除
 
@@ -292,6 +399,37 @@ const commitResult = await kv.atomic()
 1. 确保客户端支持 Server-Sent Events (SSE)
 2. 检查浏览器控制台是否有错误
 3. 尝试使用非流式模式 (`stream: false`)
+
+### Docker 相关问题
+
+#### 容器无法启动
+```bash
+# 查看详细日志
+docker compose logs
+
+# 检查端口占用
+netstat -tulpn | grep 8000  # Linux
+netstat -ano | findstr :8000  # Windows
+
+# 检查磁盘空间
+df -h  # Linux
+```
+
+#### 内存不足 (OOM)
+1. 增加 `docker-compose.yml` 中的 `mem_limit`（如改为 4g）
+2. 检查内存使用：`docker stats business-gemini-pool`
+3. 重启容器：`docker compose restart`
+
+#### 数据丢失
+1. 确保 `./data` 目录存在且有写权限
+2. 检查 volume 挂载：`docker compose config`
+3. 定期备份：`cp -r ./data ./data.backup`
+
+#### cfbed 上传失败
+1. 检查配置：`GET /api/config`
+2. 验证 `upload_endpoint` 和 `upload_api_token` 是否正确
+3. 测试网络连接：`curl https://cfbed.sanyue.de`
+4. 查看容器日志：`docker compose logs -f`
 
 ## 安全注意事项
 
