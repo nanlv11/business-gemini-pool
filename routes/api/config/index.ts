@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { ConfigStore } from "../../../lib/config-store.ts";
 import { AccountManager } from "../../../lib/account-manager.ts";
+import { requireAuth } from "../../../lib/auth.ts";
 
 /**
  * 配置管理 API
@@ -10,6 +11,9 @@ import { AccountManager } from "../../../lib/account-manager.ts";
 export const handler: Handlers = {
   // 获取完整配置
   async GET(_req, _ctx) {
+    const authError = requireAuth(_req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
     const accountManager = new AccountManager(kv);
@@ -33,6 +37,9 @@ export const handler: Handlers = {
 
   // 更新配置
   async PUT(req, _ctx) {
+    const authError = requireAuth(req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 

@@ -1,5 +1,16 @@
 import { Head } from "$fresh/runtime.ts";
+import { Handlers } from "$fresh/server.ts";
+import { requireAuthRedirect } from "../lib/auth.ts";
 import ChatInterface from "../islands/ChatInterface.tsx";
+
+export const handler: Handlers = {
+  GET(req, ctx) {
+    const authError = requireAuthRedirect(req);
+    if (authError) return authError;
+    
+    return ctx.render();
+  },
+};
 
 export default function Chat() {
   return (
@@ -15,12 +26,22 @@ export default function Chat() {
               Business Gemini
               <span class="text-sm font-normal text-gray-500 ml-4">智能对话</span>
             </h1>
-            <a
-              href="/"
-              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              返回管理
-            </a>
+            <div class="flex space-x-2">
+              <a
+                href="/"
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                返回管理
+              </a>
+              <form method="POST" action="/api/auth/logout" class="inline">
+                <button
+                  type="submit"
+                  class="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  登出
+                </button>
+              </form>
+            </div>
           </div>
         </header>
         <main class="h-[calc(100vh-80px)]">

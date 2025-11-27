@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { AccountManager } from "../../../../lib/account-manager.ts";
 
+import { requireAuth } from "../../../../lib/auth.ts";
 /**
  * 切换账号可用状态
  * POST /api/accounts/:id/toggle

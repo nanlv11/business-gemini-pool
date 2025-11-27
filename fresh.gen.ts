@@ -7,12 +7,15 @@ import * as $api_accounts_id_index from "./routes/api/accounts/[id]/index.ts";
 import * as $api_accounts_id_test from "./routes/api/accounts/[id]/test.ts";
 import * as $api_accounts_id_toggle from "./routes/api/accounts/[id]/toggle.ts";
 import * as $api_accounts_index from "./routes/api/accounts/index.ts";
+import * as $api_auth_login from "./routes/api/auth/login.ts";
+import * as $api_auth_logout from "./routes/api/auth/logout.ts";
 import * as $api_config_index from "./routes/api/config/index.ts";
 import * as $api_models_id from "./routes/api/models/[id].ts";
 import * as $api_models_index from "./routes/api/models/index.ts";
 import * as $api_status from "./routes/api/status.ts";
 import * as $chat from "./routes/chat.tsx";
 import * as $index from "./routes/index.tsx";
+import * as $login from "./routes/login.tsx";
 import * as $v1_chat_completions from "./routes/v1/chat/completions.ts";
 import * as $v1_models from "./routes/v1/models.ts";
 import * as $AccountManager from "./islands/AccountManager.tsx";
@@ -26,12 +29,15 @@ const manifest = {
     "./routes/api/accounts/[id]/test.ts": $api_accounts_id_test,
     "./routes/api/accounts/[id]/toggle.ts": $api_accounts_id_toggle,
     "./routes/api/accounts/index.ts": $api_accounts_index,
+    "./routes/api/auth/login.ts": $api_auth_login,
+    "./routes/api/auth/logout.ts": $api_auth_logout,
     "./routes/api/config/index.ts": $api_config_index,
     "./routes/api/models/[id].ts": $api_models_id,
     "./routes/api/models/index.ts": $api_models_index,
     "./routes/api/status.ts": $api_status,
     "./routes/chat.tsx": $chat,
     "./routes/index.tsx": $index,
+    "./routes/login.tsx": $login,
     "./routes/v1/chat/completions.ts": $v1_chat_completions,
     "./routes/v1/models.ts": $v1_models,
   },

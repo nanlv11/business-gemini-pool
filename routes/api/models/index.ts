@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { ConfigStore } from "../../../lib/config-store.ts";
 import type { Model } from "../../../lib/types.ts";
+import { requireAuth } from "../../../lib/auth.ts";
 
 /**
  * 模型管理 API
@@ -10,6 +11,9 @@ import type { Model } from "../../../lib/types.ts";
 export const handler: Handlers = {
   // 列出所有模型
   async GET(_req, _ctx) {
+    const authError = requireAuth(_req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 
@@ -24,6 +28,9 @@ export const handler: Handlers = {
 
   // 创建新模型
   async POST(req, _ctx) {
+    const authError = requireAuth(req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 

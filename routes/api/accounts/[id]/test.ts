@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { AccountManager } from "../../../../lib/account-manager.ts";
 import { ensureJWT } from "../../../../lib/jwt-manager.ts";
+import { requireAuth } from "../../../../lib/auth.ts";
 import { ensureSession } from "../../../../lib/session-manager.ts";
 
 /**

@@ -1,5 +1,6 @@
 import { Handlers } from "$fresh/server.ts";
 import { ConfigStore } from "../../lib/config-store.ts";
+import { requireApiAuth } from "../../lib/auth.ts";
 
 /**
  * OpenAI 兼容的模型列表接口
@@ -7,6 +8,10 @@ import { ConfigStore } from "../../lib/config-store.ts";
  */
 export const handler: Handlers = {
   async GET(_req, _ctx) {
+    // API Key 认证
+    const authError = requireApiAuth(_req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 

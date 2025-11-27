@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { AccountManager } from "../../../lib/account-manager.ts";
 import type { Account } from "../../../lib/types.ts";
+import { requireAuth } from "../../../lib/auth.ts";
 
 /**
  * 账号管理 API
@@ -10,6 +11,9 @@ import type { Account } from "../../../lib/types.ts";
 export const handler: Handlers = {
   // 列出所有账号
   async GET(_req, _ctx) {
+    const authError = requireAuth(_req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
@@ -34,6 +38,9 @@ export const handler: Handlers = {
 
   // 创建新账号
   async POST(req, _ctx) {
+    const authError = requireAuth(req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 

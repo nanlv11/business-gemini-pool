@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { AccountManager } from "../../../../lib/account-manager.ts";
 
+import { requireAuth } from "../../../../lib/auth.ts";
 /**
  * 单个账号管理 API
  * GET /api/accounts/:id - 获取账号详情

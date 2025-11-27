@@ -8,6 +8,8 @@
 - **OpenAI 兼容 API**: 支持 `/v1/chat/completions` 和 `/v1/models` 接口
 - **流式/非流式响应**: 完整支持 Server-Sent Events (SSE)
 - **管理控制台**: 基于 Fresh Islands 的 Web UI
+- **密码认证**: 环境变量配置的访问密码保护
+- **API Key 认证**: 支持 OpenAI 格式的 Bearer Token 认证
 - **图片缓存**: 使用 Deno KV 缓存小图片（<60KB）
 - **JWT 自动管理**: 自动获取和缓存 JWT（240秒有效期）
 - **会话管理**: 自动创建和复用 Gemini 会话
@@ -30,10 +32,9 @@
 curl -fsSL https://deno.land/install.sh | sh
 ```
 
-2. **生成 fresh.gen.ts**
+2. **设置访问密码** (可选，默认为 'admin')
 ```bash
-cd fresh-gemini-pool
-deno task manifest
+export ADMIN_PASSWORD="your-secure-password"
 ```
 
 3. **启动开发服务器**
@@ -42,9 +43,10 @@ deno task start
 ```
 
 4. **访问应用**
-- 管理控制台: http://localhost:8000
-- 聊天界面: http://localhost:8000/chat
-- API 端点: http://localhost:8000/v1/chat/completions
+- 登录页面: http://localhost:8000/login
+- 管理控制台: http://localhost:8000 (需要登录)
+- 聊天界面: http://localhost:8000/chat (需要登录)
+- API 端点: http://localhost:8000/v1/chat/completions (需要 API Key)
 
 ### 部署到 Deno Deploy
 
@@ -58,15 +60,24 @@ deno install -Arf https://deno.land/x/deploy/deployctl.ts
 deployctl deploy --project=your-project-name --prod main.ts
 ```
 
-3. **配置环境变量**（可选）
+3. **配置环境变量**
 在 Deno Deploy 控制台设置：
-- `PROXY_URL`: HTTP 代理地址（如需要）
+- `ADMIN_PASSWORD`: 访问密码（必需，用于Web登录和API认证）
+- `PROXY_URL`: HTTP 代理地址（可选）
 
 ## 使用说明
 
-### 1. 添加账号
+### 1. 登录系统
 
-首次部署后，访问管理控制台添加 Gemini Enterprise 账号：
+首次访问需要登录：
+
+1. 访问部署的 URL，自动跳转到登录页面
+2. 输入环境变量 `ADMIN_PASSWORD` 设置的密码
+3. 登录后可访问管理控制台和聊天界面
+
+### 2. 添加账号
+
+在管理控制台添加 Gemini Enterprise 账号：
 
 1. 点击"添加账号"按钮
 2. 填写以下信息：
@@ -78,13 +89,16 @@ deployctl deploy --project=your-project-name --prod main.ts
 
 3. 点击"测试"按钮验证账号可用性
 
-### 2. OpenAI 兼容 API 使用
+### 3. OpenAI 兼容 API 使用
 
 #### 聊天完成 (Chat Completions)
+
+**使用 API Key 认证（推荐）：**
 
 ```bash
 curl -X POST https://your-app.deno.dev/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-admin-password" \
   -d '{
     "model": "gemini-enterprise",
     "messages": [
@@ -99,6 +113,7 @@ curl -X POST https://your-app.deno.dev/v1/chat/completions \
 ```bash
 curl -X POST https://your-app.deno.dev/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-admin-password" \
   -d '{
     "model": "gemini-enterprise",
     "messages": [
@@ -111,10 +126,55 @@ curl -X POST https://your-app.deno.dev/v1/chat/completions \
 #### 列出模型
 
 ```bash
-curl https://your-app.deno.dev/v1/models
+curl https://your-app.deno.dev/v1/models \
+  -H "Authorization: Bearer your-admin-password"
 ```
 
-### 3. 管理 API
+### 4. 在代码中使用
+
+**Python (使用 OpenAI SDK):**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-admin-password",
+    base_url="https://your-app.deno.dev/v1"
+)
+
+response = client.chat.completions.create(
+    model="gemini-enterprise",
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ]
+)
+
+print(response.choices[0].message.content)
+```
+
+**Node.js:**
+
+```javascript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: 'your-admin-password',
+  baseURL: 'https://your-app.deno.dev/v1'
+});
+
+const response = await openai.chat.completions.create({
+  model: 'gemini-enterprise',
+  messages: [{ role: 'user', content: 'Hello!' }]
+});
+
+console.log(response.choices[0].message.content);
+```
+
+### 5. 管理 API
+
+管理 API 支持两种认证方式：
+- **Cookie 认证**：通过 Web 登录后自动携带
+- **Bearer Token 认证**：在请求头中添加 `Authorization: Bearer <password>`
 
 #### 账号管理
 - `GET /api/accounts` - 列出所有账号
@@ -140,7 +200,7 @@ curl https://your-app.deno.dev/v1/models
 ## 项目结构
 
 ```
-fresh-gemini-pool/
+business-gemini-pool/
 ├── lib/                     # 核心业务逻辑
 │   ├── account-manager.ts   # 多账号轮训管理
 │   ├── jwt-manager.ts       # JWT 缓存管理
@@ -148,11 +208,17 @@ fresh-gemini-pool/
 │   ├── gemini-api.ts        # Gemini API 封装
 │   ├── image-cache.ts       # 图片缓存
 │   ├── config-store.ts      # 配置存储
+│   ├── auth.ts              # 认证管理
 │   └── types.ts             # TypeScript 类型
 ├── routes/                  # 路由定义
 │   ├── index.tsx            # 管理控制台页面
+│   ├── login.tsx            # 登录页面
 │   ├── chat.tsx             # 聊天界面页面
 │   ├── api/                 # 管理 API
+│   │   ├── auth/            # 认证 API
+│   │   ├── accounts/        # 账号管理 API
+│   │   ├── models/          # 模型管理 API
+│   │   └── config/          # 配置管理 API
 │   └── v1/                  # OpenAI 兼容 API
 ├── islands/                 # 客户端交互组件
 │   ├── AccountManager.tsx   # 账号管理界面
@@ -163,6 +229,13 @@ fresh-gemini-pool/
 ```
 
 ## 核心架构
+
+### 认证系统
+
+- **Web 登录**: 基于 Cookie 的会话认证
+- **API 认证**: 支持 OpenAI 标准的 Bearer Token 认证
+- **统一密码**: 使用环境变量 `ADMIN_PASSWORD` 配置
+- **会话管理**: 内存存储，重启后失效（7天有效期）
 
 ### 多账号轮训调度
 
@@ -189,6 +262,18 @@ const commitResult = await kv.atomic()
 
 ## 故障排除
 
+### 登录失败
+
+1. 确认环境变量 `ADMIN_PASSWORD` 已设置
+2. 如未设置，默认密码为 'admin'
+3. 检查浏览器控制台是否有错误
+
+### API 认证失败
+
+1. 确保请求头包含 `Authorization: Bearer <password>`
+2. 密码必须与环境变量 `ADMIN_PASSWORD` 一致
+3. 检查 Bearer 和密码之间有空格
+
 ### 账号测试失败
 
 1. 检查 Cookie 值是否正确（`__Secure-C_SES`, `__Host-C_OSES`）
@@ -210,9 +295,11 @@ const commitResult = await kv.atomic()
 
 ## 安全注意事项
 
+- ⚠️ **重要**: 生产环境务必设置强密码作为 `ADMIN_PASSWORD`
 - ⚠️ Cookie 值包含敏感凭证，请勿泄露
-- ⚠️ 部署到生产环境时建议添加认证中间件
-- ⚠️ 管理 API 默认无认证，建议配置访问控制
+- ⚠️ API Key（即 `ADMIN_PASSWORD`）应妥善保管，不要提交到代码仓库
+- ⚠️ 建议使用 HTTPS 部署，保护传输安全
+- ⚠️ 定期更换访问密码
 
 ## 开发任务
 

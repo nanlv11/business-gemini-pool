@@ -1,6 +1,7 @@
 import { Handlers } from "$fresh/server.ts";
 import { ConfigStore } from "../../../lib/config-store.ts";
 
+import { requireAuth } from "../../../lib/auth.ts";
 /**
  * 单个模型管理 API
  * GET /api/models/:id - 获取模型详情

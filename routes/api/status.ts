@@ -1,5 +1,6 @@
 import { Handlers } from "$fresh/server.ts";
 import { AccountManager } from "../../lib/account-manager.ts";
+import { requireAuth } from "../../lib/auth.ts";
 
 /**
  * 系统状态 API
@@ -7,6 +8,9 @@ import { AccountManager } from "../../lib/account-manager.ts";
  */
 export const handler: Handlers = {
   async GET(_req, _ctx) {
+    const authError = requireAuth(_req);
+    if (authError) return authError;
+
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
