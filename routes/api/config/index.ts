@@ -11,14 +11,14 @@ import { requireAuth } from "../../../lib/auth.ts";
 export const handler: Handlers = {
   // 获取完整配置
   async GET(_req, _ctx) {
-    const authError = requireAuth(_req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
     const accountManager = new AccountManager(kv);
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const config = await store.getConfig();
       const accounts = await accountManager.listAccounts();
       const models = await store.listModels();
@@ -32,18 +32,20 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to get config:", error);
       return Response.json({ error: "Failed to get config" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 
   // 更新配置
   async PUT(req, _ctx) {
-    const authError = requireAuth(req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 
     try {
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
+
       const data = await req.json();
 
       await store.updateConfig({
@@ -58,6 +60,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Failed to update config" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 };

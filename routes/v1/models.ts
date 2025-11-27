@@ -8,14 +8,14 @@ import { requireAuth } from "../../lib/auth.ts";
  */
 export const handler: Handlers = {
   async GET(_req, _ctx) {
-    // API Key 认证
-    const authError = requireAuth(_req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 
     try {
+      // API Key 或 Cookie 认证
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const models = await store.listModels();
 
       // 转换为 OpenAI 格式
@@ -38,6 +38,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to list models:", error);
       return Response.json({ error: "Failed to list models" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 };

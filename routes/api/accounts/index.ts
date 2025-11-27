@@ -11,13 +11,13 @@ import { requireAuth } from "../../../lib/auth.ts";
 export const handler: Handlers = {
   // 列出所有账号
   async GET(_req, _ctx) {
-    const authError = requireAuth(_req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const accounts = await manager.listAccounts();
       const stats = await manager.getAccountStats();
 
@@ -33,18 +33,20 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to list accounts:", error);
       return Response.json({ error: "Failed to list accounts" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 
   // 创建新账号
   async POST(req, _ctx) {
-    const authError = requireAuth(req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
     try {
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
+
       const data = await req.json();
 
       // 验证必需字段
@@ -74,6 +76,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Failed to create account" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 };

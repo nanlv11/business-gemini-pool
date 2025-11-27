@@ -8,13 +8,13 @@ import { requireAuth } from "../../lib/auth.ts";
  */
 export const handler: Handlers = {
   async GET(_req, _ctx) {
-    const authError = requireAuth(_req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const stats = await manager.getAccountStats();
 
       return Response.json({
@@ -31,6 +31,8 @@ export const handler: Handlers = {
         },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 };

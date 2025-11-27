@@ -16,6 +16,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const model = await store.getModel(id);
       if (!model) {
         return Response.json({ error: "Model not found" }, { status: 404 });
@@ -25,6 +28,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to get model:", error);
       return Response.json({ error: "Failed to get model" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 
@@ -35,6 +40,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
+
       const data = await req.json();
       const success = await store.updateModel(id, data);
 
@@ -53,6 +61,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Failed to update model" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 
@@ -63,6 +73,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const success = await store.deleteModel(id);
 
       if (!success) {
@@ -73,6 +86,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to delete model:", error);
       return Response.json({ error: "Failed to delete model" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 };

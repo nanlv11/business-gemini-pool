@@ -13,6 +13,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const account = await manager.getAccount(id);
       if (!account) {
         return Response.json({ error: "Account not found" }, { status: 404 });
@@ -27,6 +30,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to toggle account:", error);
       return Response.json({ error: "Failed to toggle account" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 };

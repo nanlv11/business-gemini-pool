@@ -11,30 +11,32 @@ import { requireAuth } from "../../../lib/auth.ts";
 export const handler: Handlers = {
   // 列出所有模型
   async GET(_req, _ctx) {
-    const authError = requireAuth(_req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const models = await store.listModels();
       return Response.json({ models });
     } catch (error) {
       console.error("Failed to list models:", error);
       return Response.json({ error: "Failed to list models" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 
   // 创建新模型
   async POST(req, _ctx) {
-    const authError = requireAuth(req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const store = new ConfigStore(kv);
 
     try {
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
+
       const data: Model = await req.json();
 
       // 验证必需字段
@@ -68,6 +70,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Failed to create model" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 };

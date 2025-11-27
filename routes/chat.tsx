@@ -4,11 +4,16 @@ import { requireAuthRedirect } from "../lib/auth.ts";
 import ChatInterface from "../islands/ChatInterface.tsx";
 
 export const handler: Handlers = {
-  GET(req, ctx) {
-    const authError = requireAuthRedirect(req);
-    if (authError) return authError;
-    
-    return ctx.render();
+  async GET(req, ctx) {
+    const kv = await Deno.openKv();
+    try {
+      const authError = await requireAuthRedirect(kv, req);
+      if (authError) return authError;
+
+      return ctx.render();
+    } finally {
+      kv.close();
+    }
   },
 };
 

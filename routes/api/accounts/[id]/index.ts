@@ -16,6 +16,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const account = await manager.getAccount(id);
       if (!account) {
         return Response.json({ error: "Account not found" }, { status: 404 });
@@ -25,6 +28,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to get account:", error);
       return Response.json({ error: "Failed to get account" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 
@@ -35,6 +40,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
+
       const data = await req.json();
       const success = await manager.updateAccount(id, data);
 
@@ -53,6 +61,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Failed to update account" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 
@@ -63,6 +73,9 @@ export const handler: Handlers = {
     const { id } = ctx.params;
 
     try {
+      const authError = await requireAuth(kv, _req);
+      if (authError) return authError;
+
       const success = await manager.deleteAccount(id);
 
       if (!success) {
@@ -73,6 +86,8 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Failed to delete account:", error);
       return Response.json({ error: "Failed to delete account" }, { status: 500 });
+    } finally {
+      kv.close();
     }
   },
 };

@@ -54,29 +54,51 @@ function generateSessionToken(): string {
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// 会话存储（内存中，重启后失效）
-const sessions = new Set<string>();
-
 // 验证密码
 export function verifyPassword(password: string): boolean {
   return password === getAdminPassword();
 }
 
-// 创建会话
-export function createSession(): string {
+// 创建会话 - 存储到 Deno KV（持久化）
+export async function createSession(kv: Deno.Kv): Promise<string> {
   const token = generateSessionToken();
-  sessions.add(token);
+  await kv.set(
+    ["sessions", token],
+    {
+      created_at: Date.now(),
+      expires_at: Date.now() + 604800000, // 7天
+    },
+    {
+      expireIn: 604800000, // 7天后自动删除
+    }
+  );
   return token;
 }
 
-// 验证会话
-export function isValidSession(token: string): boolean {
-  return sessions.has(token);
+// 验证会话 - 从 Deno KV 读取
+export async function isValidSession(
+  kv: Deno.Kv,
+  token: string
+): Promise<boolean> {
+  try {
+    const entry = await kv.get(["sessions", token]);
+    return entry.value !== null;
+  } catch (error) {
+    console.error("Error validating session:", error);
+    return false;
+  }
 }
 
-// 销毁会话
-export function destroySession(token: string): void {
-  sessions.delete(token);
+// 销毁会话 - 从 Deno KV 删除
+export async function destroySession(
+  kv: Deno.Kv,
+  token: string
+): Promise<void> {
+  try {
+    await kv.delete(["sessions", token]);
+  } catch (error) {
+    console.error("Error destroying session:", error);
+  }
 }
 
 // 从请求中获取会话令牌
@@ -91,11 +113,14 @@ export function getSessionToken(req: Request): string | undefined {
 }
 
 // 检查请求是否已认证（通过 Cookie）
-export function isAuthenticated(req: Request): boolean {
+export async function isAuthenticated(
+  kv: Deno.Kv,
+  req: Request
+): Promise<boolean> {
   try {
     const token = getSessionToken(req);
     if (!token) return false;
-    return isValidSession(token);
+    return await isValidSession(kv, token);
   } catch (error) {
     console.error("Error in authentication:", error);
     return false;
@@ -103,9 +128,14 @@ export function isAuthenticated(req: Request): boolean {
 }
 
 // 检查请求是否已认证（支持 Cookie 或 API Key）
-export function isAuthenticatedAny(req: Request): boolean {
+export async function isAuthenticatedAny(
+  kv: Deno.Kv,
+  req: Request
+): Promise<boolean> {
   try {
-    return isAuthenticated(req) || isApiAuthenticated(req);
+    const cookieAuth = await isAuthenticated(kv, req);
+    const apiAuth = isApiAuthenticated(req);
+    return cookieAuth || apiAuth;
   } catch (error) {
     console.error("Error in isAuthenticatedAny:", error);
     return false;
@@ -176,9 +206,13 @@ export function requireApiAuth(req: Request): Response | null {
 }
 
 // 管理 API 认证中间件：支持 Cookie 或 Bearer Token
-export function requireAuth(req: Request): Response | null {
+export async function requireAuth(
+  kv: Deno.Kv,
+  req: Request
+): Promise<Response | null> {
   try {
-    if (!isAuthenticatedAny(req)) {
+    const authenticated = await isAuthenticatedAny(kv, req);
+    if (!authenticated) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -187,7 +221,7 @@ export function requireAuth(req: Request): Response | null {
     return null;
   } catch (error) {
     console.error("Error in requireAuth:", error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: "Authentication error",
       details: error instanceof Error ? error.message : "Unknown error"
     }), {
@@ -198,9 +232,13 @@ export function requireAuth(req: Request): Response | null {
 }
 
 // 页面认证中间件：仅支持 Cookie，未登录则重定向
-export function requireAuthRedirect(req: Request): Response | null {
+export async function requireAuthRedirect(
+  kv: Deno.Kv,
+  req: Request
+): Promise<Response | null> {
   try {
-    if (!isAuthenticated(req)) {
+    const authenticated = await isAuthenticated(kv, req);
+    if (!authenticated) {
       return redirectToLogin();
     }
     return null;

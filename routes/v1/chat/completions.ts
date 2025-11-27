@@ -12,14 +12,13 @@ import { requireAuth } from "../../../lib/auth.ts";
  */
 export const handler: Handlers = {
   async POST(req, _ctx) {
-    // API Key 认证
-    const authError = requireAuth(req);
-    if (authError) return authError;
-
     const kv = await Deno.openKv();
     const manager = new AccountManager(kv);
 
     try {
+      // API Key 或 Cookie 认证
+      const authError = await requireAuth(kv, req);
+      if (authError) return authError;
       const body: ChatCompletionRequest = await req.json();
       const { messages, stream = false, model = "gemini-enterprise" } = body;
 
@@ -86,6 +85,8 @@ export const handler: Handlers = {
         { error: error instanceof Error ? error.message : "Unknown error" },
         { status: 500 }
       );
+    } finally {
+      kv.close();
     }
   },
 };
