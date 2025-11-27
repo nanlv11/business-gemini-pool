@@ -59,14 +59,30 @@ export async function uploadToCfbed(
   const blob = new Blob([file], { type: mimeType });
   formData.append("file", blob, fileName);
 
-  // 发送请求
-  const response = await fetch(url, {
+  // 发送请求 - 先尝试 Bearer 格式
+  let response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiToken}`,
     },
     body: formData,
   });
+
+  // 如果401错误，尝试不带 Bearer 前缀
+  if (response.status === 401) {
+    console.log("Bearer auth failed, trying without Bearer prefix...");
+    const formData2 = new FormData();
+    const blob2 = new Blob([file], { type: mimeType });
+    formData2.append("file", blob2, fileName);
+
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: apiToken,
+      },
+      body: formData2,
+    });
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
