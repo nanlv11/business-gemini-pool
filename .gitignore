@@ -1,0 +1,47 @@
+# 环境变量（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# Deno
+.deno/
+deno.lock
+
+# 数据目录
+data/
+
+# 日志
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Node modules (如果有)
+node_modules/
+
+# Fresh 生成文件
+_fresh/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+python/
+
+# Claude Code
+.claude/

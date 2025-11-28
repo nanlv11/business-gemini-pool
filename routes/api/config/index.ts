@@ -26,6 +26,8 @@ export const handler: Handlers = {
       return Response.json({
         proxy: config.proxy,
         image_base_url: config.image_base_url,
+        upload_api_token: config.upload_api_token,
+        upload_endpoint: config.upload_endpoint,
         accounts,
         models,
       });
@@ -51,6 +53,8 @@ export const handler: Handlers = {
       await store.updateConfig({
         proxy: data.proxy,
         image_base_url: data.image_base_url,
+        upload_api_token: data.upload_api_token,
+        upload_endpoint: data.upload_endpoint,
       });
 
       return Response.json({ success: true });

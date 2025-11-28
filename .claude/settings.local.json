@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "WebFetch(domain:cfbed.sanyue.de)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

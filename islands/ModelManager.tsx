@@ -22,7 +22,7 @@ export default function ModelManager() {
     try {
       const res = await fetch("/api/models", { credentials: "include" });
       const data = await res.json();
-      models.value = data.data || [];
+      models.value = data.models || [];
     } catch (error) {
       console.error("Failed to load models:", error);
     } finally {

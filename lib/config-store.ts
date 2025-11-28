@@ -41,14 +41,48 @@ export class ConfigStore {
   }
 
   /**
+   * 获取上传 API Token
+   */
+  async getUploadApiToken(): Promise<string | null> {
+    const res = await this.kv.get<string>(["config", "upload_api_token"]);
+    return res.value;
+  }
+
+  /**
+   * 设置上传 API Token
+   */
+  async setUploadApiToken(token: string): Promise<void> {
+    await this.kv.set(["config", "upload_api_token"], token);
+  }
+
+  /**
+   * 获取上传端点
+   */
+  async getUploadEndpoint(): Promise<string | null> {
+    const res = await this.kv.get<string>(["config", "upload_endpoint"]);
+    return res.value;
+  }
+
+  /**
+   * 设置上传端点
+   */
+  async setUploadEndpoint(endpoint: string): Promise<void> {
+    await this.kv.set(["config", "upload_endpoint"], endpoint);
+  }
+
+  /**
    * 获取完整配置
    */
   async getConfig(): Promise<Config> {
     const proxy = await this.getProxy();
     const imageBaseUrl = await this.getImageBaseUrl();
+    const uploadApiToken = await this.getUploadApiToken();
+    const uploadEndpoint = await this.getUploadEndpoint();
     return {
       proxy: proxy || undefined,
       image_base_url: imageBaseUrl || undefined,
+      upload_api_token: uploadApiToken || undefined,
+      upload_endpoint: uploadEndpoint || undefined,
     };
   }
 
@@ -61,6 +95,12 @@ export class ConfigStore {
     }
     if (config.image_base_url !== undefined) {
       await this.setImageBaseUrl(config.image_base_url);
+    }
+    if (config.upload_api_token !== undefined) {
+      await this.setUploadApiToken(config.upload_api_token);
+    }
+    if (config.upload_endpoint !== undefined) {
+      await this.setUploadEndpoint(config.upload_endpoint);
     }
   }
 

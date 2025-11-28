@@ -5,12 +5,21 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  images?: Array<{ id: string; filename: string; mime_type: string; url?: string }>;
+}
+
+interface Model {
+  id: string;
+  name: string;
+  enabled: boolean;
 }
 
 const messages = signal<Message[]>([]);
 const input = signal("");
 const loading = signal(false);
 const streamMode = signal(true);
+const availableModels = signal<Model[]>([]);
+const selectedModel = signal<string>("gemini-2.5-flash");
 
 export default function ChatInterface() {
   useEffect(() => {
@@ -34,7 +43,31 @@ export default function ChatInterface() {
         },
       ];
     }
+
+    // 加载可用模型列表
+    loadModels();
   }, []);
+
+  async function loadModels() {
+    try {
+      const res = await fetch("/api/models", { credentials: "include" });
+      const data = await res.json();
+      const models = data.models || [];
+      availableModels.value = models.filter((m: Model) => m.enabled);
+
+      // 如果当前选择的模型不可用，选择第一个可用模型
+      if (availableModels.value.length > 0) {
+        const isCurrentModelAvailable = availableModels.value.some(
+          (m) => m.id === selectedModel.value
+        );
+        if (!isCurrentModelAvailable) {
+          selectedModel.value = availableModels.value[0].id;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load models:", error);
+    }
+  }
 
   async function sendMessage() {
     if (!input.value.trim() || loading.value) return;
@@ -82,7 +115,7 @@ export default function ChatInterface() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-enterprise",
+        model: selectedModel.value,
         messages: requestMessages,
         stream: true,
       }),
@@ -97,6 +130,7 @@ export default function ChatInterface() {
 
     const decoder = new TextDecoder();
     let aiContent = "";
+    const aiImages: any[] = [];
 
     // 添加空的 AI 消息
     const aiMessage: Message = {
@@ -120,12 +154,35 @@ export default function ChatInterface() {
         try {
           const json = JSON.parse(data);
           const content = json.choices[0]?.delta?.content;
+
           if (content) {
-            aiContent += content;
+            // content可能是字符串或对象
+            if (typeof content === "string") {
+              // 纯文本
+              aiContent += content;
+            } else if (content.type === "image_url") {
+              // 图片/视频对象
+              const url = content.image_url.url;
+              // 根据 URL 扩展名判断文件类型
+              const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url);
+              const filename = url.split('/').pop() || "generated_file";
+
+              aiImages.push({
+                id: url,
+                url: url,
+                filename: filename,
+                mime_type: isVideo ? "video/mp4" : "image/png",
+              });
+            }
+
             // 更新最后一条消息
             messages.value = [
               ...messages.value.slice(0, -1),
-              { ...aiMessage, content: aiContent },
+              {
+                ...aiMessage,
+                content: aiContent,
+                images: aiImages.length > 0 ? aiImages : undefined
+              },
             ];
           }
         } catch (e) {
@@ -141,7 +198,7 @@ export default function ChatInterface() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-enterprise",
+        model: selectedModel.value,
         messages: requestMessages,
         stream: false,
       }),
@@ -152,10 +209,45 @@ export default function ChatInterface() {
     }
 
     const data = await res.json();
+    const messageContent = data.choices[0]?.message?.content;
+
+    // 解析OpenAI标准格式的content
+    let textContent = "";
+    let images: any[] | undefined;
+
+    if (typeof messageContent === "string") {
+      // 纯文本格式
+      textContent = messageContent;
+    } else if (Array.isArray(messageContent)) {
+      // 数组格式（包含文本和图片/视频）
+      const imageItems: any[] = [];
+      for (const item of messageContent) {
+        if (item.type === "text") {
+          textContent += item.text;
+        } else if (item.type === "image_url") {
+          const url = item.image_url.url;
+          // 根据 URL 扩展名判断文件类型
+          const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url);
+          const filename = url.split('/').pop() || "generated_file";
+
+          imageItems.push({
+            id: url,
+            url: url,
+            filename: filename,
+            mime_type: isVideo ? "video/mp4" : "image/png",
+          });
+        }
+      }
+      if (imageItems.length > 0) {
+        images = imageItems;
+      }
+    }
+
     const aiMessage: Message = {
       role: "assistant",
-      content: data.choices[0]?.message?.content || "无响应",
+      content: textContent || "无响应",
       timestamp: new Date().toISOString(),
+      images: images,
     };
 
     messages.value = [...messages.value, aiMessage];
@@ -195,6 +287,22 @@ export default function ChatInterface() {
             />
             <span class="text-sm text-gray-700">流式响应</span>
           </label>
+
+          {/* 模型选择器 */}
+          <label class="flex items-center space-x-2">
+            <span class="text-sm text-gray-700">模型:</span>
+            <select
+              value={selectedModel.value}
+              onChange={(e) => (selectedModel.value = (e.target as HTMLSelectElement).value)}
+              class="px-2 py-1 text-sm border border-gray-300 rounded"
+            >
+              {availableModels.value.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <button
           onClick={clearChat}
@@ -219,6 +327,43 @@ export default function ChatInterface() {
               }`}
             >
               <div class="whitespace-pre-wrap">{msg.content}</div>
+
+              {/* 显示生成的图片/视频 */}
+              {msg.images && msg.images.length > 0 && (
+                <div class="mt-3 space-y-2">
+                  {msg.images.map((img, imgIdx) => {
+                    const mediaUrl = img.url || `/api/images/${img.id}`;
+                    // 根据 URL 扩展名判断是否为视频
+                    const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(mediaUrl);
+
+                    return (
+                      <div key={imgIdx} class="border rounded overflow-hidden bg-white">
+                        {isVideo ? (
+                          <video
+                            src={mediaUrl}
+                            controls
+                            class="max-w-full h-auto"
+                            preload="metadata"
+                          >
+                            您的浏览器不支持视频播放。
+                          </video>
+                        ) : (
+                          <img
+                            src={mediaUrl}
+                            alt={img.filename}
+                            class="max-w-full h-auto"
+                            loading="lazy"
+                          />
+                        )}
+                        <div class="text-xs p-2 bg-gray-50 text-gray-700">
+                          {img.filename}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               <div
                 class={`text-xs mt-1 ${
                   msg.role === "user" ? "text-blue-100" : "text-gray-500"
